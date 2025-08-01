@@ -200,7 +200,7 @@ class st_gcn(nn.Module):
 
         res = self.residual(x)
         x, A = self.gcn(x, A)
-        #x = self.gcn(x)
+        #x = self.gcn(x)z
         x = self.tcn(x) + res
         
         if not self.use_mdn:

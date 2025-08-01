@@ -18,27 +18,6 @@ from numpy import linalg as LA
 import networkx as nx
 
 
-def ade(predAll,targetAll,count_):
-    predAll=np.array(predAll)
-    targetAll=np.array(targetAll)
-    All = len(predAll)
-    if (All == 0):
-        return 0
-    sum_all = 0 
-    for s in range(All):
-        pred = np.swapaxes(predAll[s][:,:count_[s],:],0,1) #交换数组的轴
-        target = np.swapaxes(targetAll[s][:,:count_[s],:],0,1)
-        
-        N = pred.shape[0]
-        T = pred.shape[1]
-        sum_ = 0 
-        for i in range(N):
-            for t in range(T):
-                sum_+=math.sqrt((pred[i,t,0] - target[i,t,0])**2+(pred[i,t,1] - target[i,t,1])**2)
-        sum_all += sum_/(N*T)
-    #T是时间长度,N是数据量，ALL是人数量
-    return sum_all/All
-
 def compute_ADE(pred_arr, gt_arr):
     ade = 0.0
     ade2 = 0.0
@@ -55,23 +34,7 @@ def compute_ADE(pred_arr, gt_arr):
         ade2 += ade2_inside
     ade /= len(pred_arr)
     ade2 /= len(pred_arr)
-    return ade
-
-def fde(predAll,targetAll,count_):
-    All = len(predAll)
-    sum_all = 0 
-    for s in range(All):
-        pred = np.swapaxes(predAll[s][:,:count_[s],:],0,1)
-        target = np.swapaxes(targetAll[s][:,:count_[s],:],0,1)
-        N = pred.shape[0]
-        T = pred.shape[1]
-        sum_ = 0 
-        for i in range(N):
-            for t in range(T-1,T):
-                sum_+=math.sqrt((pred[i,t,0] - target[i,t,0])**2+(pred[i,t,1] - target[i,t,1])**2)
-        sum_all += sum_/(N)
-
-    return sum_all/All
+    return ade2
 
 def compute_FDE(pred_arr, gt_arr):
     fde = 0.0
@@ -79,7 +42,7 @@ def compute_FDE(pred_arr, gt_arr):
         diff = pred - np.expand_dims(gt, axis=0)        # samples x frames x 2
         dist = np.linalg.norm(diff, axis=-1)            # samples x frames
         dist = dist[..., -1]                            # samples
-        fde += dist.mean(axis=0)                         # (1, )
+        fde += dist.min(axis=0)                         # (1, )
     fde /= len(pred_arr)
     return fde
 def seq_to_nodes(seq_):
@@ -151,9 +114,7 @@ def bivariate_loss(V_pred,V_trgt):
     result = torch.mean(result)
     nan = float('nan')
     if math.isnan(result):
-        print("ICDEc测试1：",denom.size(),negRho.size())
-        torch.save(V_pred, 'H:/GRK/ICDE/V_pred.pt')
-        torch.save(V_trgt, 'H:/GRK/ICDE/V_trgt.pt')
+        print("Nan：",denom.size(),negRho.size())
     return result
 
 def construct_loss(V_pred,V_trgt):
@@ -175,26 +136,7 @@ def velocity_bound_loss(Velocity_pred,Velocity_trgt):
     V_pre_loss = torch.mean(V_pre_loss)
     return V_pre_loss
 
-def velocity_physic_loss(V_pred,Velocity_pred,Accelarete_pred):
-    #遍历时间序列维度
-    result = torch.zeros(Accelarete_pred.shape[1],Accelarete_pred.shape[2]).cuda()
-    for t in range(Accelarete_pred.shape[0]):
-        current_p = V_pred[t, :, 0:2]
-        next_p = V_pred[t + 1, :, 0:2]
-        current_v = Velocity_pred[t, :, 0:2]
-        next_v = Velocity_pred[t + 1, :, 0:2]
-        current_a = Accelarete_pred[t, :, :]
-        result += (next_v**2-current_v**2-2*current_a*(next_p-current_p))**2
-    result = torch.mean(result)
-    return result
-
-
 def poly_physic_loss_new(V_pred, Velocity_pred, V_poly, delta_t=0.4):
-    # V_pred [T, N, h] 预测的行人轨迹 (x, y 坐标)
-    # Velocity_pred [T, N, h] 预测的速度 (x, y) 可用于扩展
-    # V_poly [N, h, order] 运动方程的多项式系数
-    # delta_t 时间间隔 (通常为 0.4)
-    #print("KDD测试：",V_pred.shape,V_poly.shape)
     T, N, h = V_pred.shape
     order = V_poly.shape[2]  # 多项式的阶数
     # 存储所有相邻时间间隔点的 MSE
@@ -238,17 +180,3 @@ def poly_physic_loss_new(V_pred, Velocity_pred, V_poly, delta_t=0.4):
     avg_loss = total_loss / num_pairs
     return avg_loss
 
-
-def poly_physic_loss(V_pred,Velocity_pred,V_poly,delta_t=0.4):
-    #遍历时间序列维度
-    result = torch.zeros(V_poly.shape[1],2).cuda()
-    order = V_poly.shape[2]/2
-    for t in range(V_poly.shape[0]):
-        current_p = V_pred[t, :, 0:2]
-        next_p = V_pred[t + 1, :, 0:2]
-        pinn_dist_x = V_poly[t, :,0]*(delta_t**4)+V_poly[t, :,1]*(delta_t**3)+V_poly[t, :,2]*(delta_t**2)+V_poly[t, :,3]*(delta_t)+V_poly[t, :,4]
-        pinn_dist_y = V_poly[t, :, 5] * (delta_t ** 4) + V_poly[t, :, 6] * (delta_t ** 3) + V_poly[t, :, 7] * (delta_t ** 2) + V_poly[t, :, 8] * (delta_t) + V_poly[t, :, 9]
-        pinn_dist = torch.stack((pinn_dist_x, pinn_dist_y), dim=-1)
-        result +=(next_p-pinn_dist)**2
-    result = torch.mean(result)
-    return result

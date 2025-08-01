@@ -1,5 +1,5 @@
-# PI-STGCN: Physiccs-Informed Spatio-Temporal Graph Networks for Interpretable Pedestrain Trajectory Prediction
-### PI-STGCN
+# DSPIGCN: Dual-stream Physics-informed Graph Convolutional Network for Reliable Pedestrian Trajectory Prediction
+### DSPIGCN
 
 #### Model
 

@@ -313,7 +313,7 @@ if __name__ == '__main__':
     # Data specifc paremeters
     parser.add_argument('--obs_seq_len', type=int, default=8)
     parser.add_argument('--pred_seq_len', type=int, default=12)
-    parser.add_argument('--dataset', default='eth',
+    parser.add_argument('--dataset', default='sdd',
                         help='eth,hotel,univ,zara1,zara2')
 
     # model architecture
@@ -328,7 +328,7 @@ if __name__ == '__main__':
     # Training specifc parameters
     parser.add_argument('--batch_size', type=int, default=128,
                         help='minibatch size')
-    parser.add_argument('--num_epochs', type=int, default=200,
+    parser.add_argument('--num_epochs', type=int, default=2,
                         help='number of epochs')
     parser.add_argument('--clip_grad', type=float, default=None,
                         help='gadient clipping')
@@ -338,7 +338,7 @@ if __name__ == '__main__':
                         help='number of steps to drop the lr')
     parser.add_argument('--use_lrschd', action="store_true", default=False,
                         help='Use lr rate scheduler')
-    parser.add_argument('--tag', default='eth',
+    parser.add_argument('--tag', default='sdd',
                         help='personal tag for the model ')
     parser.add_argument('--construct_loss_lambda', type=float, default=1, help="the weight of bound loss")
     parser.add_argument('--physical_loss_lambda', type=float, default=0.1, help="the weight of physical loss")

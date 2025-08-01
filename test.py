@@ -5,6 +5,7 @@ import torch
 import numpy as np
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
+from pyDOE import lhs
 import pickle
 import argparse
 import glob
@@ -14,6 +15,14 @@ from metrics import *
 from model import *
 import copy
 
+def box_muller_transform(x: torch.FloatTensor):
+    r"""Box-Muller transform"""
+    shape = x.shape
+    x = x.view(shape[:-1] + (-1, 2))
+    z = torch.zeros_like(x, device=x.device)
+    z[..., 0] = (-2 * x[..., 0].log()).sqrt() * (2 * np.pi * x[..., 1]).cos()
+    z[..., 1] = (-2 * x[..., 0].log()).sqrt() * (2 * np.pi * x[..., 1]).sin()
+    return z.view(shape)
 
 def test(KSTEPS=20):
     global loader_test, model
@@ -22,7 +31,6 @@ def test(KSTEPS=20):
     fde_meter = AverageMeter()
     ade_bigls = []
     fde_bigls = []
-    v_ade_bigls = []
     raw_data_dict = {}
     tcss_data_dict = {}#存储最优的分布id
     step = 0
@@ -33,8 +41,6 @@ def test(KSTEPS=20):
         obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_ped, \
             loss_mask, V_obs, A_obs, V_tr, A_tr, valid_ped, frame_idx = batch
 
-        num_of_objs = obs_traj_rel.shape[1]
-
         # Forward
         # V_obs = batch,seq,node,feat
         # V_obs_tmp = batch,feat,seq,node
@@ -43,12 +49,7 @@ def test(KSTEPS=20):
         V_obs_tmp = V_obs.permute(0, 3, 1, 2)
 
         V_pred, _, Accelerate_pred,_ = model(V_obs_tmp, A_obs.squeeze(),V_obs_abs)
-        # print(V_pred.shape)
-        # torch.Size([1, 5, 12, 2])
-        # torch.Size([12, 2, 5])
         V_pred = V_pred.permute(0, 2, 3, 1)
-        # torch.Size([1, 12, 2, 5])>>seq,node,feat
-        # V_pred= torch.rand_like(V_tr).cuda()
 
         V_tr = V_tr.squeeze()
         A_tr = A_tr.squeeze()
@@ -56,11 +57,6 @@ def test(KSTEPS=20):
 
         num_of_objs = obs_traj_rel.shape[1]
         V_pred, V_tr = V_pred[:, :num_of_objs, :], V_tr[:, :num_of_objs, :]
-        # print(V_pred.shape)
-
-        # For now I have my bi-variate parameters
-        # normx =  V_pred[:,:,0:1]
-        # normy =  V_pred[:,:,1:2]
         sx = torch.exp(V_pred[:, :, 2])  # sx
         sy = torch.exp(V_pred[:, :, 3])  # sy
         corr = torch.tanh(V_pred[:, :, 4])  # corr
@@ -72,15 +68,15 @@ def test(KSTEPS=20):
         cov[:, :, 1, 1] = sy * sy
         mean = V_pred[:, :, 0:2]
 
+        V_obs_traj = obs_traj.permute(0, 3, 1, 2).squeeze(dim=0)
+        lhs_sample = torch.tensor(lhs(2, samples=20))
+        qr_seq = torch.stack([box_muller_transform(lhs_sample) for _ in range(mean.size(0))], dim=1).unsqueeze(
+            dim=2).type_as(mean)
+        sample = mean + (torch.linalg.cholesky(cov) @ qr_seq.unsqueeze(dim=-1)).squeeze(dim=-1)
+        V_absl = sample.cumsum(dim=1) + V_obs_traj[[-1], :, :]
+
         mvnormal = torchdist.MultivariateNormal(mean, cov)  # 创建多元正态分布
 
-        ### Rel to abs
-        ##obs_traj.shape = torch.Size([1, 6, 2, 8]) Batch, Ped ID, x|y, Seq Len
-
-        # Now sample 20 samples
-        ade_ls = {}
-        fde_ls = {}
-        v_ade_ls = {}
         V_x = seq_to_nodes(obs_traj.data.cpu().numpy().copy())
         V_x_rel_to_abs = nodes_rel_to_nodes_abs(V_obs.data.cpu().numpy().squeeze().copy(),
                                                 V_x[0, :, :].copy())
@@ -101,7 +97,6 @@ def test(KSTEPS=20):
         for k in range(KSTEPS):
             V_pred = mvnormal.sample()
             #V_pred = mean
-
             V_pred_rel_to_abs = nodes_rel_to_nodes_abs(V_pred.data.cpu().numpy().squeeze().copy(),
                                                        V_x[-1, :, :].copy())
             raw_data_dict[step]['pred'].append(copy.deepcopy(V_pred_rel_to_abs))
@@ -123,7 +118,7 @@ def test(KSTEPS=20):
         pred_arr = np.array(agent_traj)
         pred_arr = np.swapaxes(pred_arr, 0, 1)
         gt_arr = np.array(traj_gt)
-        #print("KDD测试:",pred_arr.shape,gt_arr.shape)
+        pred_arr = V_absl.permute(2, 0, 1, 3).detach().cpu().numpy()
         ade_step = compute_ADE(pred_arr, gt_arr)
         fde_step = compute_FDE(pred_arr, gt_arr)
         ade_meter.update(ade_step, n=num_of_objs)
@@ -132,16 +127,13 @@ def test(KSTEPS=20):
         ade_bigls.append(ade_step)
         fde_bigls.append(fde_step)
         #tcss_data_dict[step][n]=ade_index
-
-    ade_ = sum(ade_bigls) / len(ade_bigls)
-    fde_ = sum(fde_bigls) / len(fde_bigls)
     v_ade = 0
     return ade_meter.avg, fde_meter.avg, v_ade, raw_data_dict, tcss_data_dict
 
 
 paths = ['./KDD_checkpoint/*social-stgcnn*']
 KSTEPS = 20
-test_file='univ'
+test_file='hotel'
 print("*" * 50)
 print('Number of samples:', KSTEPS)
 print("*" * 50)
@@ -171,7 +163,7 @@ for feta in range(len(paths)):
         # Data prep
         obs_seq_len = args.obs_seq_len
         pred_seq_len = args.pred_seq_len
-        data_set = './datasets_icdm/' + args.dataset + '/'
+        data_set = './datasets/' + args.dataset + '/'
         print(data_set)
         dset_test = TrajectoryDataset(
             data_set + 'test/',
@@ -201,13 +193,11 @@ for feta in range(len(paths)):
         v_ade_ = 999999
         print("Testing ....")
         ad, fd, v_ad, raw_data_dic_, tcss_data_dic_ = test()
-        """
         with open('./Results/KDD/'+test_file+'_data.pickle', 'wb') as file:
             pickle.dump(raw_data_dic_, file)
         with open('./Results/KDD/'+test_file+'_tcss.pickle', 'wb') as file:
             pickle.dump(tcss_data_dic_, file)
         ade_ = min(ade_, ad)
-        """
 
         #
         ade_ = min(ade_, ad)
