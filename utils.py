@@ -195,10 +195,11 @@ def read_file(_path, delim='\t'):
         delim = '\t'
     elif delim == 'space':
         delim = ' '
-    with open(_path, 'r') as f:
+    with (open(_path, 'r') as f):
         for line in f:
             line = line.strip().split(delim)
             line = [float(i) for i in line]
+            #[float(i) for i in line]
             data.append(line)
     return np.asarray(data)
 
@@ -284,7 +285,7 @@ class TrajectoryDataset(Dataset):
                     rel_curr_ped_seq[:, 1:] = \
                         curr_ped_seq[:, 1:] - curr_ped_seq[:, :-1]
                     _idx = num_peds_considered
-                    if (poly_fit(curr_ped_seq, pred_len, threshold)>=0):
+                    if (poly_fit(curr_ped_seq, pred_len, threshold)==0):
 
                         curr_seq[_idx, :, pad_front:pad_end] = curr_ped_seq_abs
                         curr_seq_rel[_idx, :, pad_front:pad_end] = rel_curr_ped_seq

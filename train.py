@@ -46,7 +46,7 @@ def graph_pinn_loss(V_trgt, V_pred,Velocity_pred, Accelarete_pred, lambda1=1e-1,
     return loss,graph_loss,pinn_physic_loss
 
 def graph_pinn_loss_any_order(V_trgt, V_pred,Velocity_pred, Accelarete_pred, lambda1=1e-1, lambda2=1e-1):
-    graph_loss = bivariate_loss(V_pred, V_trgt)+lambda1*construct_loss(V_pred, V_trgt)
+    graph_loss = bivariate_loss(V_pred, V_trgt)#+lambda1*construct_loss(V_pred, V_trgt)
     pinn_physic_loss = poly_physic_loss_new(V_pred,Velocity_pred, Accelarete_pred)  #测试用V_trgt好还是V_pred好
     loss = graph_loss +lambda2 *pinn_physic_loss
     return loss,graph_loss,pinn_physic_loss
@@ -313,7 +313,7 @@ if __name__ == '__main__':
     # Data specifc paremeters
     parser.add_argument('--obs_seq_len', type=int, default=8)
     parser.add_argument('--pred_seq_len', type=int, default=12)
-    parser.add_argument('--dataset', default='sdd',
+    parser.add_argument('--dataset', default='trajnet',
                         help='eth,hotel,univ,zara1,zara2')
 
     # model architecture
@@ -328,19 +328,19 @@ if __name__ == '__main__':
     # Training specifc parameters
     parser.add_argument('--batch_size', type=int, default=128,
                         help='minibatch size')
-    parser.add_argument('--num_epochs', type=int, default=2,
+    parser.add_argument('--num_epochs', type=int, default=200,
                         help='number of epochs')
     parser.add_argument('--clip_grad', type=float, default=None,
                         help='gadient clipping')
-    parser.add_argument('--lr', type=float, default=1e-2,
+    parser.add_argument('--lr', type=float, default=1e-3,
                         help='learning rate')
     parser.add_argument('--lr_sh_rate', type=int, default=150,
                         help='number of steps to drop the lr')
     parser.add_argument('--use_lrschd', action="store_true", default=False,
                         help='Use lr rate scheduler')
-    parser.add_argument('--tag', default='sdd',
+    parser.add_argument('--tag', default='trajnet',
                         help='personal tag for the model ')
-    parser.add_argument('--construct_loss_lambda', type=float, default=1, help="the weight of bound loss")
+    parser.add_argument('--construct_loss_lambda', type=float, default=0.01, help="the weight of construct loss")
     parser.add_argument('--physical_loss_lambda', type=float, default=0.1, help="the weight of physical loss")
 
     # training options

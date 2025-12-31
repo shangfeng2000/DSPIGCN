@@ -118,7 +118,7 @@ def test(KSTEPS=20):
         pred_arr = np.array(agent_traj)
         pred_arr = np.swapaxes(pred_arr, 0, 1)
         gt_arr = np.array(traj_gt)
-        pred_arr = V_absl.permute(2, 0, 1, 3).detach().cpu().numpy()
+        #pred_arr = V_absl.permute(2, 0, 1, 3).detach().cpu().numpy()
         ade_step = compute_ADE(pred_arr, gt_arr)
         fde_step = compute_FDE(pred_arr, gt_arr)
         ade_meter.update(ade_step, n=num_of_objs)
@@ -133,7 +133,7 @@ def test(KSTEPS=20):
 
 paths = ['./KDD_checkpoint/*social-stgcnn*']
 KSTEPS = 20
-test_file='hotel'
+test_file='trajnet'
 print("*" * 50)
 print('Number of samples:', KSTEPS)
 print("*" * 50)
@@ -145,7 +145,7 @@ for feta in range(len(paths)):
     path = paths[feta]
     exps = glob.glob(path)  # 查找符合指定模式的文件路径名的函数
     print('Model being tested are:', exps)
-    exps = ['H:/GRK/STG/Social-STGCNN-master/KDD_ablation2_checkpoint/'+test_file]  # demo测试，利用生成的tag checkpoint
+    exps = ['H:/GRK/ICDE/DSPIGCN/KDD_checkpoint/'+test_file]  # demo测试，利用生成的tag checkpoint
     for exp_path in exps:
         print("*" * 50)
         print("Evaluating model:", exp_path)
@@ -181,11 +181,6 @@ for feta in range(len(paths)):
             model = pi_stgcn(args).cuda()
         else:
             model = pi_stgcn_any_order(args).cuda()
-        # model = self_attention_stgcn(args, n_stgcnn=args.n_stgcnn, n_txpcnn=args.n_txpcnn, kernel_size=args.kernel_size).cuda()
-
-        # model = social_stgcnn(n_stgcnn=args.n_stgcnn, n_txpcnn=args.n_txpcnn,
-        #                       input_feat=args.input_size, output_feat=args.output_size, seq_len=args.obs_seq_len,
-        #                       kernel_size=args.kernel_size, pred_seq_len=args.pred_seq_len).cuda()
         model.load_state_dict(torch.load(model_path))
 
         ade_ = 999999

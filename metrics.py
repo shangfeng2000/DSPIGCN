@@ -29,12 +29,12 @@ def compute_ADE(pred_arr, gt_arr):
             min_sample = np.min(dist[:,f])
             ade2_inside+= min_sample
         ade2_inside = ade2_inside/dist.shape[1]
-        dist = dist.mean(axis=0)                      # samples
+        dist = dist.mean(axis=0)                     # samples
         ade += dist.mean(axis=0)                         # (1, )
         ade2 += ade2_inside
     ade /= len(pred_arr)
     ade2 /= len(pred_arr)
-    return ade2
+    return ade
 
 def compute_FDE(pred_arr, gt_arr):
     fde = 0.0
@@ -42,7 +42,7 @@ def compute_FDE(pred_arr, gt_arr):
         diff = pred - np.expand_dims(gt, axis=0)        # samples x frames x 2
         dist = np.linalg.norm(diff, axis=-1)            # samples x frames
         dist = dist[..., -1]                            # samples
-        fde += dist.min(axis=0)                         # (1, )
+        fde += dist.mean(axis=0)                         # (1, )
     fde /= len(pred_arr)
     return fde
 def seq_to_nodes(seq_):
@@ -126,6 +126,18 @@ def construct_loss(V_pred,V_trgt):
     con_loss = con_loss.sum()  # 求均值
     return con_loss
 
+def velocity_physic_loss(V_pred,Velocity_pred,Accelarete_pred):
+    #遍历时间序列维度
+    result = torch.zeros(Accelarete_pred.shape[1],Accelarete_pred.shape[2]).cuda()
+    for t in range(Accelarete_pred.shape[0]):
+        current_p = V_pred[t, :, 0:2]
+        next_p = V_pred[t + 1, :, 0:2]
+        current_v = Velocity_pred[t, :, 0:2]
+        next_v = Velocity_pred[t + 1, :, 0:2]
+        current_a = Accelarete_pred[t, :, :]
+        result += (next_v**2-current_v**2-2*current_a*(next_p-current_p))**2
+    result = torch.mean(result)
+    return result
 
 def velocity_bound_loss(Velocity_pred,Velocity_trgt):
     #V_pre_x = torch.log((Velocity_pred[:,:,0]-Velocity_trgt[:,:,0])**2)
